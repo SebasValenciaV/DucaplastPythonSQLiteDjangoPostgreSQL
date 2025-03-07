@@ -1,0 +1,9 @@
+.detalles article .badge{
+    width: 135px;
+}
+
+textarea{
+    resize: none;
+    height: 170px;
+}
+
