@@ -1,10 +1,36 @@
 from django.db import models
 from django.core.exceptions import ValidationError
-from django.contrib.auth.models import AbstractUser, Group, Permission
+from django.contrib.auth.models import AbstractUser, Group, Permission, BaseUserManager
 from django.utils import timezone
 from datetime import timedelta
+from django.apps import apps
 
-# Create your models here.
+# Manager custom para Usuarios
+class UsuarioManager(BaseUserManager):
+    def _create_user(self, username, email, password, **extra_fields):
+        if not username:
+            raise ValueError('El nombre de usuario es obligatorio')
+        email = self.normalize_email(email)
+        user = self.model(username=username, email=email, **extra_fields)
+        user.set_password(password)
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, username, email, password, **extra_fields):
+        extra_fields.setdefault('is_staff', True)
+        extra_fields.setdefault('is_superuser', True)
+        # Si no se especifica el campo tipo_usuario, se asigna el tipo "Administrador"
+        if 'tipo_usuario' not in extra_fields or extra_fields['tipo_usuario'] is None:
+            # Se usa apps.get_model para obtener el modelo TipoUsuario
+            TipoUsuario = apps.get_model('main', 'TipoUsuario')
+            # Se obtiene o crea el registro con id=1, que asumimos es "Administrador"
+            extra_fields['tipo_usuario'] = TipoUsuario.objects.get_or_create(
+                id=1,
+                defaults={'description': 'Administrador'}
+            )[0]
+        return self._create_user(username, email, password, **extra_fields)
+
+# Modelo para el tipo de usuario
 class TipoUsuario(models.Model):
     id = models.IntegerField(primary_key=True)
     description = models.CharField(max_length=25)
@@ -12,13 +38,15 @@ class TipoUsuario(models.Model):
     def __str__(self):
         return self.description
 
+# Modelo para los estados
 class Estados(models.Model):
     id = models.AutoField(primary_key=True)
     description = models.CharField(max_length=25)
 
     def __str__(self):
-            return self.description
-        
+        return self.description
+
+# Modelo para clientes
 class Clientes(models.Model):
     id = models.AutoField(primary_key=True)
     nombre = models.CharField(max_length=100)
@@ -26,14 +54,17 @@ class Clientes(models.Model):
     dinero_generado = models.BigIntegerField(default=0)
     
     def __str__(self):
-            return f"{self.nombre} ID: {self.id}"
-        
-# Login model
+        return f"{self.nombre} ID: {self.id}"
+
+# Modelo custom de usuario (login)
 class Usuarios(AbstractUser):
     id = models.AutoField(primary_key=True)
     tipo_usuario = models.ForeignKey(TipoUsuario, on_delete=models.CASCADE)
     groups = models.ManyToManyField(Group, related_name="customuser_set")
     user_permissions = models.ManyToManyField(Permission, related_name="customuser_set")
+    
+    # Asignamos nuestro manager custom
+    objects = UsuarioManager()
     
     def save(self, *args, **kwargs):
         if not self.password:
@@ -43,6 +74,7 @@ class Usuarios(AbstractUser):
     def __str__(self):
         return f"{self.first_name} {self.last_name} ID: {self.id}"
 
+# Modelo para pedidos
 class Pedido(models.Model):
     id = models.AutoField(primary_key=True)
     vendedor = models.ForeignKey(Usuarios, on_delete=models.CASCADE, related_name="vendedor")
@@ -84,20 +116,11 @@ class Pedido(models.Model):
         else:
             return 'bg-success'
     
-    #Modulo cantidad
-    # def descontar_cantidad_producto(self):
-    #     productos_pedido = ProductosPedido.objects.filter(id_pedido=self)
-    #     for producto_pedido in productos_pedido:
-    #         producto = producto_pedido.id_producto
-    #         if producto.cantidad < producto_pedido.cantidad:
-    #             raise ValidationError(f"No hay suficiente cantidad disponible para el producto {producto.nombre}.")
-    #         producto.cantidad -= producto_pedido.cantidad
-    #         producto.save()
-            
     def actualizar_dinero_generado_cliente(self):
         self.cliente.dinero_generado += self.valor
         self.cliente.save()
-            
+
+# Modelo para productos
 class Producto(models.Model):
     id = models.AutoField(primary_key=True)
     descripcion = models.CharField(max_length=400)
@@ -107,12 +130,14 @@ class Producto(models.Model):
     
     def __str__(self):
          return self.descripcion
-     
+
+# Modelo intermedio para relacionar productos y pedidos
 class ProductosPedido(models.Model):
     producto = models.ForeignKey(Producto, on_delete=models.CASCADE)
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)
     cantidad = models.IntegerField(default=1)   
-    
+
+# Modelo para el manejo de despacho
 class HandlerDespacho(models.Model):
     despachador = models.ForeignKey(Usuarios, on_delete=models.CASCADE)
-    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE) 
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE)
