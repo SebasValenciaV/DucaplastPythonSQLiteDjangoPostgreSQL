@@ -4,7 +4,10 @@
       {
         "src": "ducaplast/wsgi.py",
         "use": "@vercel/python",
-        "config": { "maxLambdaSize": "50mb" }
+        "config": {
+          "maxLambdaSize": "50mb",
+          "entrypoint": "application"
+        }
       }
     ],
     "routes": [
