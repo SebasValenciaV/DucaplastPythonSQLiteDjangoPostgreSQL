@@ -2,18 +2,15 @@
     "version": 2,
     "builds": [
       {
-        "src": "ducaplast/wsgi.py",
+        "src": "api/index.py",
         "use": "@vercel/python",
-        "config": {
-          "maxLambdaSize": "50mb",
-          "entrypoint": "application"
-        }
+        "config": { "maxLambdaSize": "50mb" }
       }
     ],
     "routes": [
       {
         "src": "/(.*)",
-        "dest": "ducaplast/wsgi.py"
+        "dest": "api/index.py"
       }
     ]
   }
